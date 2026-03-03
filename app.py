@@ -44,7 +44,7 @@ if uploaded_video is not None:
             break # Kết thúc video
             
         # Đưa khung hình vào mô hình YOLO để nhận diện
-        results = model(frame)
+        results = model(frame, classes=[1])
         
         # Lấy ảnh đã được vẽ sẵn hộp giới hạn (bounding box)
         annotated_frame = results[0].plot()
@@ -62,4 +62,5 @@ if uploaded_video is not None:
             alert_box.success("✅ Khung hình an toàn.")
             
     cap.release()
+
     st.info("Đã xử lý xong toàn bộ video.")
