@@ -15,7 +15,7 @@ def load_model():
     return YOLO("best.pt")
 
 model = load_model()
-PERSON_CLASS_ID = 1 # CẬP NHẬT THEO YÊU CẦU: Class ID là 1
+PERSON_CLASS_ID = 0 # CẬP NHẬT THEO YÊU CẦU: Class ID là 1
 
 # 3. Sidebar điều hướng
 st.sidebar.title("Điều hướng hệ thống")
@@ -134,3 +134,4 @@ elif app_mode == "Camera Web":
                     st.success("✅ Tầm nhìn quang đãng.")
         except Exception as e:
             st.error(f"Có lỗi khi xử lý camera: {e}")
+
