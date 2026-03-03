@@ -5,94 +5,85 @@ from PIL import Image
 import tempfile
 from ultralytics import YOLO
 
-# 1. Cấu hình giao diện Web
-st.set_page_config(page_title="Hệ Thống Nhận Diện Người", layout="wide")
-st.title("Hệ Thống Nhận Diện Người Tích Hợp Đa Nguồn")
+# 1. Cấu hình giao diện
+st.set_page_config(page_title="Nhận Diện Người Đa Nguồn", layout="wide")
+st.title("Phân Tích & Nhận Diện Người Thời Gian Thực")
 
-# 2. Tải mô hình AI
+# 2. Tải mô hình
 @st.cache_resource
 def load_model():
     return YOLO("best.pt")
 
 model = load_model()
-PERSON_CLASS_ID = 0 # ID của class Người
+PERSON_CLASS_ID = 1 # CẬP NHẬT THEO YÊU CẦU: Class ID là 1
 
-# 3. Tạo Menu chọn chế độ ở thanh bên (Sidebar)
-st.sidebar.title("Cài đặt Nguồn dữ liệu")
-app_mode = st.sidebar.selectbox("Chọn chế độ đầu vào:", ["Tải Video", "Tải Ảnh", "Camera Web"])
+# 3. Sidebar điều hướng
+st.sidebar.title("Điều hướng hệ thống")
+app_mode = st.sidebar.radio(
+    "Vui lòng chọn nguồn dữ liệu đầu vào:",
+    ("Tải Ảnh Tĩnh", "Tải Video", "Camera Web") # Thay đổi từ selectbox sang radio để dễ nhìn
+)
+
+st.write(f"Đang sử dụng chế độ: **{app_mode}**")
+st.markdown("---")
 
 # ==========================================
 # CHẾ ĐỘ 1: TẢI ẢNH TĨNH
 # ==========================================
-if app_mode == "Tải Ảnh":
-    st.markdown("### Nhận diện trên Ảnh tĩnh")
-    uploaded_image = st.file_uploader("Tải ảnh lên (JPG, PNG)", type=["jpg", "jpeg", "png"])
+if app_mode == "Tải Ảnh Tĩnh":
+    st.markdown("### Nhận diện trên Ảnh Tĩnh")
+    # THÊM KEY = 'image_uploader' ĐỂ TÁCH BIỆT VỚI VIDEO
+    uploaded_image = st.file_uploader("Chọn một bức ảnh (JPG, PNG)", type=["jpg", "jpeg", "png"], key="image_uploader")
     
     if uploaded_image is not None:
-        # Đọc ảnh bằng thư viện PIL
-        image = Image.open(uploaded_image)
-        # Chuyển ảnh sang mảng ma trận để AI đọc hiểu
-        img_array = np.array(image)
-        
-        # Đưa qua YOLO xử lý
-        results = model(img_array, classes=[PERSON_CLASS_ID])
-        
-        # Lấy ảnh kết quả và đổi hệ màu hiển thị
-        annotated_img = results[0].plot()
-        annotated_img = cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB)
-        
-        st.image(annotated_img, caption="Kết quả nhận diện", use_container_width=True)
-        st.info(f"Phát hiện {len(results[0].boxes)} người trong ảnh.")
+        try:
+            # Đọc file ảnh an toàn
+            image = Image.open(uploaded_image)
+            img_array = np.array(image)
+            
+            # Xử lý nếu ảnh có kênh alpha (RGBA) từ PNG
+            if img_array.shape[-1] == 4:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
+                
+            with st.spinner('Đang phân tích ảnh...'):
+                results = model(img_array, classes=[PERSON_CLASS_ID])
+                
+                annotated_img = results[0].plot()
+                annotated_img = cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB)
+                
+                st.image(annotated_img, caption="Kết quả Phân Tích", use_container_width=True)
+                
+                boxes = results[0].boxes
+                if len(boxes) > 0:
+                    st.success(f"✅ Đã tìm thấy {len(boxes)} người trong khung hình.")
+                else:
+                    st.warning("⚠️ Không tìm thấy người nào.")
+        except Exception as e:
+            st.error(f"Có lỗi khi đọc ảnh: {e}")
 
 # ==========================================
-# CHẾ ĐỘ 2: CAMERA WEB
-# ==========================================
-elif app_mode == "Camera Web":
-    st.markdown("### Nhận diện trực tiếp qua Camera")
-    st.write("Hãy cấp quyền truy cập Camera cho trình duyệt và chụp một bức ảnh.")
-    
-    # Kích hoạt Camera của trình duyệt
-    camera_image = st.camera_input("Chụp ảnh")
-    
-    if camera_image is not None:
-        # Xử lý tương tự như tải ảnh
-        image = Image.open(camera_image)
-        img_array = np.array(image)
-        
-        results = model(img_array, classes=[PERSON_CLASS_ID])
-        
-        annotated_img = results[0].plot()
-        annotated_img = cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB)
-        
-        st.image(annotated_img, caption="Kết quả từ Camera", use_container_width=True)
-        
-        boxes = results[0].boxes
-        if len(boxes) > 0:
-            st.error(f"⚠️ Phát hiện {len(boxes)} người!")
-        else:
-            st.success("✅ Không có người.")
-
-# ==========================================
-# CHẾ ĐỘ 3: TẢI VIDEO (Giữ nguyên như cũ)
+# CHẾ ĐỘ 2: TẢI VIDEO
 # ==========================================
 elif app_mode == "Tải Video":
     st.markdown("### Nhận diện trên Video")
-    uploaded_video = st.file_uploader("Tải video lên (MP4, AVI)", type=["mp4", "avi"])
+    # THÊM KEY = 'video_uploader'
+    uploaded_video = st.file_uploader("Chọn một đoạn video (MP4, AVI)", type=["mp4", "avi"], key="video_uploader")
 
     if uploaded_video is not None:
-        tfile = tempfile.NamedTemporaryFile(delete=False) 
+        tfile = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') 
         tfile.write(uploaded_video.read())
         
         cap = cv2.VideoCapture(tfile.name)
-        col1, col2 = st.columns([3, 1])
         
+        col1, col2 = st.columns([3, 1])
         with col1:
             stframe = st.empty()
-            
         with col2:
             alert_box = st.empty()
+            
+        stop_button = st.button("Dừng phát video")
         
-        while cap.isOpened():
+        while cap.isOpened() and not stop_button:
             ret, frame = cap.read()
             if not ret:
                 break
@@ -106,9 +97,40 @@ elif app_mode == "Tải Video":
             
             boxes = results[0].boxes
             if len(boxes) > 0:
-                alert_box.error(f"⚠️ Phát hiện {len(boxes)} người!")
+                alert_box.error(f"🚨 CẢNH BÁO: {len(boxes)} người!")
             else:
-                alert_box.success("✅ Khung hình an toàn.")
+                alert_box.success("✅ Khu vực an toàn.")
                 
         cap.release()
-        st.info("Đã xử lý xong toàn bộ video.")
+        st.info("Luồng video đã kết thúc.")
+
+# ==========================================
+# CHẾ ĐỘ 3: CAMERA WEB (CHỤP ẢNH)
+# ==========================================
+elif app_mode == "Camera Web":
+    st.markdown("### Quét qua Camera")
+    st.info("Vui lòng cho phép trình duyệt truy cập Camera. Khung camera sẽ hiện bên dưới.")
+    
+    # Kích hoạt camera
+    camera_image = st.camera_input("Bấm để chụp ảnh phân tích", key="camera_input")
+    
+    if camera_image is not None:
+        try:
+            image = Image.open(camera_image)
+            img_array = np.array(image)
+            
+            with st.spinner('Đang phân tích hình ảnh từ Camera...'):
+                results = model(img_array, classes=[PERSON_CLASS_ID])
+                
+                annotated_img = results[0].plot()
+                annotated_img = cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB)
+                
+                st.image(annotated_img, caption="Kết quả từ hệ thống", use_container_width=True)
+                
+                boxes = results[0].boxes
+                if len(boxes) > 0:
+                    st.error(f"🚨 Phát hiện {len(boxes)} đối tượng tình nghi!")
+                else:
+                    st.success("✅ Tầm nhìn quang đãng.")
+        except Exception as e:
+            st.error(f"Có lỗi khi xử lý camera: {e}")
